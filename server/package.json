@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "bun run index.ts",
-    "start": "bun run index.ts"
+    "start": "bun run index.ts",
+    "publish": "cd ../client && npm run build && cd ../server && bun run start"
   },
   "devDependencies": {
     "@types/bun": "latest"
