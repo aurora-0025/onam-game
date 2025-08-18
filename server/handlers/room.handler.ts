@@ -177,6 +177,7 @@ export function handleRoomEvents(io: Server, socket: Socket) {
     socket.join(room.id);
     
     console.log(`✅ Room ${room.id} created by ${socket.id}. Total rooms: ${rooms.size}`);
+    
     socket.emit("room:created", { inviteCode: room.id, leader: true });
   });
 

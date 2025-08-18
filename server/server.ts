@@ -13,7 +13,7 @@ export async function createServer(port: number) {
   const httpServer = http.createServer(app);
   const io = new Server(httpServer, {
     cors: {
-      origin: [import.meta.env.BASE_URL ?? "", "http://localhost:5173"],
+      origin: ["https://onam-game-production.up.railway.app", "http://localhost:5173"],
       methods: ["GET", "POST"]
     }
   });

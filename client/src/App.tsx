@@ -16,17 +16,7 @@ export type RoomState = {
 };
 
 // --- Socket init with explicit config + debug ---
-const socket: Socket = io(
-  import.meta.env.PROD ? window.location.origin : "http://localhost:3000",
-  {
-    path: "/socket.io",
-    transports: ["websocket", "polling"],
-    withCredentials: true,
-    reconnection: true,
-    reconnectionAttempts: 10,
-    timeout: 20000
-  }
-);
+const socket: Socket = io("https://onam-game-production.up.railway.app");
 
 // Debug wrappers
 const originalEmit = socket.emit.bind(socket);
@@ -59,7 +49,11 @@ function App() {
     socket.on("error", (e) => console.error("[socket] error", e));
 
     // Room / game events
-    socket.on("room:created", () => socket.emit("room:status"));
+    socket.on("room:created", () => {
+      console.log("Room Created");
+      
+      socket.emit("room:status")
+  });
     socket.on("room:joined", () => socket.emit("room:status"));
     socket.on("room:status", (data: RoomState) => {
       const players = data.players ?? [];
