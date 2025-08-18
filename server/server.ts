@@ -13,7 +13,7 @@ export async function createServer(port: number) {
   const httpServer = http.createServer(app);
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.NODE_ENV === "production" ? undefined : "http://localhost:5173",
+      origin: [import.meta.env.BASE_URL ?? "", "http://localhost:5173"],
       methods: ["GET", "POST"]
     }
   });
