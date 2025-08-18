@@ -17,7 +17,7 @@ export type RoomState = {
 
 const socket = io(
   import.meta.env.PROD
-    ? (typeof window !== "undefined" ? window.location.origin : "")
+    ? undefined
     : "http://localhost:3000"
 );
 
@@ -41,11 +41,15 @@ function App() {
     socket.on("connect_error", onConnectError);
     socket.on("disconnect", onDisconnect);
     socket.on("reconnect", onReconnect);
+    socket.on("connect", () => {
+      console.log(socket.id);
+    });
 
     return () => {
       socket.off("connect_error", onConnectError);
       socket.off("disconnect", onDisconnect);
       socket.off("reconnect", onReconnect);
+      socket.off("connect");
     };
   }, []);
   
