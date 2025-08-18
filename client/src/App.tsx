@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import { io } from "socket.io-client";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import Room from "./Room";
 import MainMenu from "./MainMenu";
 import Game, { type GameState } from "./Game";
-
-const socket = io(import.meta.env.PROD ? import.meta.env.BASE_URL : "http://localhost:3000");
 
 export type RoomState = {
   inRoom: boolean;
@@ -17,86 +15,108 @@ export type RoomState = {
   size?: number;
 };
 
-function App() {
-  const [roomState, setRoomState] = useState<RoomState>({ inRoom: false });
-  const [gameState, setGameState] = useState<GameState | null>(null);
+const socket = io(
+  import.meta.env.PROD
+    ? (typeof window !== "undefined" ? window.location.origin : "")
+    : "http://localhost:3000"
+);
 
+function App() {
+  const [roomState, setRoomState] = useState<RoomState>({ inRoom: false, players: [], size: 0 });
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  
   useEffect(() => {
-    // Listen for room events
-    socket.on("room:created", (data) => {
-      console.log("Room created:", data);
-      socket.emit("room:status"); // Get full room state
+    const onConnectError = (err: Error & { description?: string; context?: unknown }) => {
+      console.log("socket connect_error:", err.message, err.description, err.context);
+      toast.error("Connection error: " + err.message);
+    };
+    const onDisconnect = (reason: string) => {
+      console.log("socket disconnected:", reason);
+    };
+    const onReconnect = () => {
+      console.log("socket reconnected");
+      socket.emit("room:status");
+    };
+
+    socket.on("connect_error", onConnectError);
+    socket.on("disconnect", onDisconnect);
+    socket.on("reconnect", onReconnect);
+
+    return () => {
+      socket.off("connect_error", onConnectError);
+      socket.off("disconnect", onDisconnect);
+      socket.off("reconnect", onReconnect);
+    };
+  }, []);
+  
+  useEffect(() => {
+    socket.on("room:created", () => {
+      socket.emit("room:status");
     });
 
-    socket.on("room:joined", (data) => {
-      console.log("Room joined:", data);
-      socket.emit("room:status"); // Get full room state
+    socket.on("room:joined", () => {
+      socket.emit("room:status");
     });
 
     socket.on("room:status", (data: RoomState) => {
-      console.log("Room status:", data);
-      setRoomState(data);
+      const players = data.players ?? [];
+      setRoomState({
+        ...data,
+        players,
+        size: players.length
+      });
     });
 
-    socket.on("room:error", (data) => {
+    socket.on("room:error", (data: { message: string }) => {
       console.error("Room error:", data.message);
-      alert(data.message);
+      toast.error(data.message);
     });
 
     socket.on("room:left", () => {
-      setRoomState({ inRoom: false });
+      setRoomState({ inRoom: false, players: [], size: 0 });
     });
 
-    // Listen for player join/leave events to update UI
-    socket.on("room:playerJoined", (data) => {
-      console.log("Player joined:", data);
-      setRoomState(prevState => {
-        if (!prevState.players) return prevState;
-        const newPlayer = { id: data.playerId, name: data.playerName };
-        // Check if player already exists to avoid duplicates
-        const playerExists = prevState.players.some(p => p.id === data.playerId);
-        if (playerExists) return prevState;
-        
+    socket.on("room:playerJoined", (data: { playerId: string; playerName: string }) => {
+      setRoomState(prev => {
+        const players = prev.players ?? [];
+        if (players.some(p => p.id === data.playerId)) return prev;
+        const updated = [...players, { id: data.playerId, name: data.playerName }];
         return {
-          ...prevState,
-          players: [...prevState.players, newPlayer],
-          size: (prevState.size || 0) + 1
+            ...prev,
+            players: updated,
+            size: updated.length
         };
       });
     });
 
-    socket.on("room:playerLeft", (data) => {
-      console.log("Player left:", data);
-      setRoomState(prevState => {
-        if (!prevState.players) return prevState;
-        
+    socket.on("room:playerLeft", (data: { playerId: string }) => {
+      setRoomState(prev => {
+        const players = prev.players ?? [];
+        const updated = players.filter(p => p.id !== data.playerId);
         return {
-          ...prevState,
-          players: prevState.players.filter(p => p.id !== data.playerId),
-          size: Math.max((prevState.size || 1) - 1, 0)
+          ...prev,
+          players: updated,
+          size: updated.length
         };
       });
     });
 
-    socket.on("room:leaderChanged", (data) => {
-      console.log("Leader changed:", data);
-      setRoomState(prevState => ({
-        ...prevState,
+    socket.on("room:leaderChanged", (data: { leaderId: string }) => {
+      setRoomState(prev => ({
+        ...prev,
         leaderId: data.leaderId
       }));
     });
 
-    // Listen for game events
     socket.on("game:started", (data: GameState) => {
-      console.log("Game started:", data);
+      if (!data) {
+        console.error("Received empty game state");
+        return;
+      }
       setGameState(data);
-      setRoomState(prevState => ({
-        ...prevState,
-        inQueue: false
-      }));
+      setRoomState(prev => ({ ...prev, inQueue: false }));
     });
 
-    // Check initial room status
     socket.emit("room:status");
 
     return () => {
@@ -114,10 +134,9 @@ function App() {
 
   const handleLeaveGame = () => {
     setGameState(null);
-    socket.emit("room:status"); // Refresh room state
+    socket.emit("room:status");
   };
 
-  // Game takes priority over room
   if (gameState) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
