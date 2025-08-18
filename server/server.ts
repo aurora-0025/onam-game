@@ -10,7 +10,7 @@ export async function createServer(port: number) {
   const httpServer = createHttpServer(app);
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.NODE_ENV === "production" ? import.meta.env.BASE_URL : "http://localhost:5173",
+      origin: process.env.NODE_ENV === "production" ? process.env.RENDER_EXTERNAL_URL : "http://localhost:5173",
       methods: ["GET", "POST"]
     }
   });
@@ -40,4 +40,5 @@ export async function createServer(port: number) {
   return { io, app, httpServer };
 
 }
+
 
