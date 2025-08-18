@@ -15,10 +15,8 @@ export type RoomState = {
   size?: number;
 };
 
-// --- Socket init with explicit config + debug ---
-const socket: Socket = io("https://onam-game-production.up.railway.app");
+const socket: Socket = io(import.meta.env.SOCKET_URL || "http://localhost:3000");
 
-// Debug wrappers
 const originalEmit = socket.emit.bind(socket);
 socket.emit = (event: string, ...args: unknown[]) => {
   console.log("[socket][send]", event, args[0] ?? "");
