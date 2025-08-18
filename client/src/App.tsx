@@ -5,7 +5,7 @@ import Room from "./Room";
 import MainMenu from "./MainMenu";
 import Game, { type GameState } from "./Game";
 
-const socket = io("http://localhost:3000");
+const socket = io(import.meta.env.PROD ? import.meta.env.BASE_URL : "http://localhost:3000");
 
 export type RoomState = {
   inRoom: boolean;
