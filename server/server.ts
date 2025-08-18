@@ -1,19 +1,21 @@
 import { Server } from "socket.io";
 import http from 'node:http';
-import express from "express";
-import path from "path";
 import { handleRoomEvents } from "./handlers/room.handler";
 import { handleGameEvents } from "./handlers/game.handler";
 
 export async function createServer(port: number) {
-  const app = express();
-  const clientPath = path.resolve(__dirname, "..", "client", "dist");
-  app.use(express.static(clientPath));
+  const ORIGIN = process.env.ORIGIN;
+  const DEV = process.env.NODE_ENV === 'development';
 
-  const httpServer = http.createServer(app);
+  const httpServer = http.createServer((req, res) => {
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/plain');
+    res.end('Hello World\n');
+  });
+
   const io = new Server(httpServer, {
     cors: {
-      origin: ["https://onam-game-production.up.railway.app", "http://localhost:5173"],
+      origin: DEV ? "http://localhost:5173" : ORIGIN,
       methods: ["GET", "POST"]
     }
   });
@@ -30,18 +32,13 @@ export async function createServer(port: number) {
     console.log(err.context);  // { name: 'TRANSPORT_MISMATCH', transport: 'websocket', previousTransport: 'polling' }
   });
 
-  if (process.env.NODE_ENV === "production") {
-    app.get("/{*any}", (req, res) => {
-      res.sendFile(path.join(clientPath, "index.html"));
-    });
-  }
 
 
   httpServer.listen(port, () => {
     console.log(`Server running on port ${port}`);
   });
 
-  return { io, app, httpServer };
+  return { io, httpServer };
 
 }
 
