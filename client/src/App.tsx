@@ -15,8 +15,7 @@ export type RoomState = {
   size?: number;
 };
 
-const socket: Socket = io(import.meta.env.SOCKET_URL || "http://localhost:3000");
-
+const socket: Socket = io(import.meta.env.VITE_SOCKET_URL || "http://localhost:3000");
 const originalEmit = socket.emit.bind(socket);
 socket.emit = (event: string, ...args: unknown[]) => {
   console.log("[socket][send]", event, args[0] ?? "");

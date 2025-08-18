@@ -13,7 +13,6 @@ export async function createServer(port: number) {
     res.end('Hello World\n');
   });
 
-  console.log("ALLOW CORS TO", DEV ? "http://localhost:5173" : ORIGIN);
 
   const io = new Server(httpServer, {
     cors: {
