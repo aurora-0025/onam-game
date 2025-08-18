@@ -18,13 +18,6 @@ export async function createServer(port: number) {
     }
   });
 
-  if (process.env.NODE_ENV === "production") {
-    app.get("/{*any}", (req, res) => {
-      res.sendFile(path.join(clientPath, "index.html"));
-    });
-  }
-
-
   io.on("connection", (socket) => {
     console.log("Client connected:", socket.id);
     handleRoomEvents(io, socket);
@@ -36,6 +29,13 @@ export async function createServer(port: number) {
     console.log(err.message);  // "Bad request"
     console.log(err.context);  // { name: 'TRANSPORT_MISMATCH', transport: 'websocket', previousTransport: 'polling' }
   });
+
+  if (process.env.NODE_ENV === "production") {
+    app.get("/{*any}", (req, res) => {
+      res.sendFile(path.join(clientPath, "index.html"));
+    });
+  }
+
 
   httpServer.listen(port, () => {
     console.log(`Server running on port ${port}`);
