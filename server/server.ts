@@ -1,5 +1,5 @@
 import { Server } from "socket.io";
-import { createServer as createHttpServer } from "http";
+import http from 'node:http';
 import express from "express";
 import path from "path";
 import { handleRoomEvents } from "./handlers/room.handler";
@@ -7,24 +7,22 @@ import { handleGameEvents } from "./handlers/game.handler";
 
 export async function createServer(port: number) {
   const app = express();
-  const httpServer = createHttpServer(app);
-  console.log(process.env.NODE_ENV === "production" ? process.env.RENDER_EXTERNAL_URL + "/" : "http://localhost:5173/");
+  const clientPath = path.resolve(__dirname, "..", "client", "dist");
+  app.use(express.static(clientPath));
+
+  const httpServer = http.createServer(app);
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.NODE_ENV === "production" ? process.env.RENDER_EXTERNAL_URL + "/" : "http://localhost:5173/",
+      origin: process.env.NODE_ENV === "production" ? import.meta.env.BASE_URL : "http://localhost:5173",
       methods: ["GET", "POST"]
     }
   });
 
-  const clientPath = path.resolve(__dirname, "..", "client", "dist");
-
   if (process.env.NODE_ENV === "production") {
-    app.use(express.static(clientPath));
     app.get("/{*any}", (req, res) => {
       res.sendFile(path.join(clientPath, "index.html"));
     });
   }
-
 
 
   io.on("connection", (socket) => {
@@ -33,14 +31,17 @@ export async function createServer(port: number) {
     handleGameEvents(io, socket);
   });
 
+  io.engine.on("connection_error", (err) => {
+    console.log(err.code);     // 3
+    console.log(err.message);  // "Bad request"
+    console.log(err.context);  // { name: 'TRANSPORT_MISMATCH', transport: 'websocket', previousTransport: 'polling' }
+  });
+
   httpServer.listen(port, () => {
     console.log(`Server running on port ${port}`);
-    console.log(`Serving static files from: ${clientPath}`);
   });
 
   return { io, app, httpServer };
 
 }
-
-
 
