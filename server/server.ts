@@ -8,9 +8,10 @@ import { handleGameEvents } from "./handlers/game.handler";
 export async function createServer(port: number) {
   const app = express();
   const httpServer = createHttpServer(app);
+  console.log(process.env.NODE_ENV === "production" ? process.env.RENDER_EXTERNAL_URL + "/" : "http://localhost:5173/");
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.NODE_ENV === "production" ? process.env.RENDER_EXTERNAL_URL : "http://localhost:5173",
+      origin: process.env.NODE_ENV === "production" ? process.env.RENDER_EXTERNAL_URL + "/" : "http://localhost:5173/",
       methods: ["GET", "POST"]
     }
   });
@@ -40,5 +41,6 @@ export async function createServer(port: number) {
   return { io, app, httpServer };
 
 }
+
 
 
