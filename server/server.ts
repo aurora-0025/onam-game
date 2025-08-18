@@ -19,7 +19,7 @@ export async function createServer(port: number) {
 
   if (process.env.NODE_ENV === "production") {
     app.use(express.static(clientPath));
-    app.get("*", (req, res) => {
+    app.get("/{*any}", (req, res) => {
       res.sendFile(path.join(clientPath, "index.html"));
     });
   }
@@ -38,4 +38,5 @@ export async function createServer(port: number) {
   });
 
   return { io, app, httpServer };
+
 }
