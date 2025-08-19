@@ -1,6 +1,6 @@
 import { Server } from "socket.io";
 import http from 'node:http';
-import { handleRoomEvents } from "./handlers/room.handler";
+import { handleTeamEvents } from "./handlers/team.handler";
 import { handleGameEvents } from "./handlers/game.handler";
 
 export async function createServer(port: number) {
@@ -10,7 +10,7 @@ export async function createServer(port: number) {
   const httpServer = http.createServer((req, res) => {
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/plain');
-    res.end('Hello World\n');
+    res.end('The Socket Server Is Up and Running\n');
   });
 
 
@@ -23,7 +23,7 @@ export async function createServer(port: number) {
 
   io.on("connection", (socket) => {
     console.log("Client connected:", socket.id);
-    handleRoomEvents(io, socket);
+    handleTeamEvents(io, socket);
     handleGameEvents(io, socket);
   });
 

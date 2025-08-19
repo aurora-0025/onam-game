@@ -1,4 +1,4 @@
-import { rooms } from "./handlers/room.handler";
+import { teams } from "./handlers/team.handler";
 
 /**
  * Generates a unique 6-character invite code
@@ -16,14 +16,14 @@ export function generateInviteCode(): string {
       code = Math.random().toString(36).substring(2, 10).toUpperCase();
       break;
     }
-  } while (rooms && rooms.has(code));
+  } while (teams && teams.has(code));
 
   return code;
 }
 
 /**
- * Generates a unique room ID
+ * Generates a unique team ID
  */
-export function generateRoomId(): string {
-  return `room-${Math.random().toString(36).substring(2, 15)}`;
+export function generateTeamId(): string {
+  return `team-${Math.random().toString(36).substring(2, 15)}`;
 }

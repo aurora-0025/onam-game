@@ -7,7 +7,7 @@ type GamePlayer = {
 };
 
 type GameTeam = {
-  roomId: string;
+  teamId: string;
   name: string;
   players: GamePlayer[];
   leaderId: string;
@@ -23,6 +23,15 @@ type GameState = {
   barPosition: number; // -25 to 25, negative = teamA winning, positive = teamB winning
   createdAt: number;
   endedAt?: number;
+};
+
+// Import Team type from team.handler.ts
+type Team = {
+  id: string;
+  name: string;
+  participants: Set<{ id: string; name: string; socket: Socket }>;
+  leaderId: string;
+  inQueue: boolean;
 };
 
 const activeGames: Map<string, GameState> = new Map();
@@ -106,11 +115,11 @@ function broadcastGameUpdate(io: Server, game: GameState) {
   });
 }
 
-export function createGame(gameId: string, teamA: any, teamB: any): GameState {
+export function createGame(gameId: string, teamA: Team, teamB: Team): GameState {
   const game: GameState = {
     id: gameId,
     teamA: {
-      roomId: teamA.id,
+      teamId: teamA.id,
       name: teamA.name,
       players: [...teamA.participants].map(p => ({ 
         id: p.id, 
@@ -121,7 +130,7 @@ export function createGame(gameId: string, teamA: any, teamB: any): GameState {
       totalClicks: 0
     },
     teamB: {
-      roomId: teamB.id,
+      teamId: teamB.id,
       name: teamB.name,
       players: [...teamB.participants].map(p => ({ 
         id: p.id, 
