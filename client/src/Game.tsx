@@ -156,7 +156,7 @@ function Game({ socket, gameState: initialGameState, onLeaveGame }: GameProps) {
             backgroundSize: "cover",
             backgroundRepeat: "no-repeat",
             backgroundPosition: "bottom",
-            backgroundImage: "url('/game-bg.png')",
+            backgroundImage: "url('/game-bg.webp')",
           }}
         >
           {/* Threshold markers */}
