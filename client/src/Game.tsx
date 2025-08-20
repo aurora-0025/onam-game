@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import type { Socket } from "socket.io-client";
 import { Button } from "./components/ui/button";
 import { toast } from "sonner";
-import { Trophy, Skull, RotateCcw, Clock, Users, Target, DoorOpen, Zap } from "lucide-react";
+import { Trophy, Skull, RotateCcw, Clock, Users, DoorOpen } from "lucide-react";
 import CanvasArena from "./CanvasArena";
 
 /**
@@ -43,7 +43,6 @@ interface GameProps {
 function Game({ socket, gameState: initialGameState, onLeaveGame }: GameProps) {
     const [gameState, setGameState] = useState<GameState>(initialGameState);
     const [ropeFrame, setRopeFrame] = useState(1);
-    const [clickEffect, setClickEffect] = useState(false);
 
     // Rope animation
     useEffect(() => {
@@ -78,8 +77,6 @@ function Game({ socket, gameState: initialGameState, onLeaveGame }: GameProps) {
     const handleClick = () => {
         if (gameState.status === "active") {
             socket.emit("game:click");
-            setClickEffect(true);
-            setTimeout(() => setClickEffect(false), 150);
         }
     };
     const handleLeaveGame = () => {
@@ -155,12 +152,6 @@ function Game({ socket, gameState: initialGameState, onLeaveGame }: GameProps) {
                             }`}>
                                 {gameState.status === 'active' ? 'ACTIVE' :
                                  gameState.status === 'countdown' ? 'STARTING' : 'FINISHED'}
-                            </div>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                <Target className="w-4 h-4" />
-                                <span>Target: {gameState.winThreshold} clicks</span>
                             </div>
                         </div>
                     </div>
@@ -323,8 +314,6 @@ function Game({ socket, gameState: initialGameState, onLeaveGame }: GameProps) {
                                     onClick={handleClick}
                                     disabled={showWinScreen || yourTeamEmpty || gameState.status !== "active"}
                                     className={`relative w-40 h-40 text-3xl font-bold rounded-full shadow-2xl border-4 transition-all duration-200 transform ${
-                                        clickEffect ? 'scale-90' : 'scale-100 hover:scale-105'
-                                    } ${
                                         showWinScreen || yourTeamEmpty || gameState.status !== "active"
                                             ? 'bg-gray-400 border-gray-300 cursor-not-allowed'
                                             : isCountdown
@@ -345,16 +334,11 @@ function Game({ socket, gameState: initialGameState, onLeaveGame }: GameProps) {
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center">
-                                            <Zap className="w-8 h-8 mb-1 text-white" />
                                             <div>PULL!</div>
                                         </div>
                                     )}
                                 </Button>
-                                
-                                {/* Click ripple effect */}
-                                {clickEffect && (
-                                    <div className="absolute inset-0 rounded-full bg-white/30 animate-ping pointer-events-none" />
-                                )}
+                            
                             </div>
                         );
                     })()}
