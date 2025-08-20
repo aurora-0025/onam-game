@@ -2,276 +2,366 @@ import { useState, useEffect } from "react";
 import type { Socket } from "socket.io-client";
 import { Button } from "./components/ui/button";
 import { toast } from "sonner";
-import CharacterSprite from "./components/CharacterSprite";
+import { Trophy, Skull, RotateCcw, Clock, Users, Target, DoorOpen, Zap } from "lucide-react";
+import CanvasArena from "./CanvasArena";
 
 /**
  * Matches server "game:started" / "game:update" payload (team.handler.ts + game.handler.ts)
  */
 export type GameState = {
-  gameId: string;
-  teamA: {
-    teamId: string;
-    name: string;
-    players: { id: string; name: string; clicks: number }[];
-    leaderId: string;
-    totalClicks: number;
-  };
-  teamB: {
-    teamId: string;
-    name: string;
-    players: { id: string; name: string; clicks: number }[];
-    leaderId: string;
-    totalClicks: number;
-  };
-  barPosition: number;
-  status: "active" | "finished";
-  winner?: "teamA" | "teamB";
-  winThreshold: number;
-  yourTeamIsA: boolean;
+    gameId: string;
+    teamA: {
+        teamId: string;
+        name: string;
+        players: { id: string; name: string; clicks: number }[];
+        leaderId: string;
+        totalClicks: number;
+    };
+    teamB: {
+        teamId: string;
+        name: string;
+        players: { id: string; name: string; clicks: number }[];
+        leaderId: string;
+        totalClicks: number;
+    };
+    barPosition: number;
+    status: "countdown" | "active" | "finished";
+    winner?: "teamA" | "teamB";
+    winThreshold: number;
+    yourTeamIsA: boolean;
+    countdownRemaining?: number;
+    restartVotesA?: string[];
+    restartVotesB?: string[];
 };
 
 interface GameProps {
-  socket: Socket;
-  gameState: GameState;          // Must already be in the new format
-  onLeaveGame: () => void;
+    socket: Socket;
+    gameState: GameState;
+    onLeaveGame: () => void;
 }
 
 function Game({ socket, gameState: initialGameState, onLeaveGame }: GameProps) {
-  const [gameState, setGameState] = useState<GameState>(initialGameState);
-  const [ropeFrame, setRopeFrame] = useState(1);
+    const [gameState, setGameState] = useState<GameState>(initialGameState);
+    const [ropeFrame, setRopeFrame] = useState(1);
+    const [clickEffect, setClickEffect] = useState(false);
 
-  /* ---------- Animation (rope frames) ---------- */
-  useEffect(() => {
-    const i = setInterval(() => {
-      setRopeFrame(r => (r === 3 ? 1 : r + 1));
-    }, 200);
-    return () => clearInterval(i);
-  }, []);
+    // Rope animation
+    useEffect(() => {
+        const i = setInterval(() => {
+            setRopeFrame(r => (r === 3 ? 1 : r + 1));
+        }, 200);
+        return () => clearInterval(i);
+    }, []);
 
-  /* ---------- Socket events (game:started + game:update) ---------- */
-  useEffect(() => {
-    const onStarted = (data: GameState) => setGameState(data);
-    const onUpdate = (data: GameState) => setGameState(data);
-    const onError = (data: { message: string }) =>
-      toast.error(`Game error: ${data.message}`, { duration: 4000 });
-    const onLeft = () => onLeaveGame();
+    // Socket events
+    useEffect(() => {
+        const onStarted = (data: GameState) => setGameState(data);
+        const onUpdate = (data: GameState) => setGameState(data);
+        const onError = (data: { message: string }) =>
+            toast.error(`Game error: ${data.message}`, { duration: 4000 });
+        const onLeft = () => onLeaveGame();
 
-    socket.on("game:started", onStarted);
-    socket.on("game:update", onUpdate);
-    socket.on("game:error", onError);
-    socket.on("game:left", onLeft);
+        socket.on("game:started", onStarted);
+        socket.on("game:update", onUpdate);
+        socket.on("game:error", onError);
+        socket.on("game:left", onLeft);
 
-    return () => {
-      socket.off("game:started", onStarted);
-      socket.off("game:update", onUpdate);
-      socket.off("game:error", onError);
-      socket.off("game:left", onLeft);
+        return () => {
+            socket.off("game:started", onStarted);
+            socket.off("game:update", onUpdate);
+            socket.off("game:error", onError);
+            socket.off("game:left", onLeft);
+        };
+    }, [socket, onLeaveGame]);
+
+    // Actions
+    const handleClick = () => {
+        if (gameState.status === "active") {
+            socket.emit("game:click");
+            setClickEffect(true);
+            setTimeout(() => setClickEffect(false), 150);
+        }
     };
-  }, [socket, onLeaveGame]);
+    const handleLeaveGame = () => {
+        socket.emit("game:leave");
+        onLeaveGame();
+    };
+    const handleRestart = () => {
+        socket.emit("game:restart");
+    };
 
-  /* ---------- Actions ---------- */
-  const handleClick = () => {
-    if (gameState.status === "active") socket.emit("game:click");
-  };
-  const handleLeaveGame = () => {
-    socket.emit("game:leave");
-    onLeaveGame();
-  };
+    // Derived teams
+    const { teamA, teamB, yourTeamIsA } = gameState;
+    const yourTeam = yourTeamIsA ? teamA : teamB;
+    const opponentTeam = yourTeamIsA ? teamB : teamA;
 
-  /* ---------- Derived teams ---------- */
-  const { teamA, teamB, yourTeamIsA, barPosition, winThreshold } = gameState;
-  const yourTeam = yourTeamIsA ? teamA : teamB;
-  const opponentTeam = yourTeamIsA ? teamB : teamA;
+    // Win / end conditions
+    const isGameOver = gameState.status === "finished";
+    const opponentTeamEmpty = opponentTeam.players.length === 0;
+    const yourTeamEmpty = yourTeam.players.length === 0;
 
-  /* ---------- Win / end conditions ---------- */
-  const isGameOver = gameState.status === "finished";
-  const opponentTeamEmpty = opponentTeam.players.length === 0;
-  const yourTeamEmpty = yourTeam.players.length === 0;
+    const myId = socket.id!;
+    const restartVotesA = gameState.restartVotesA || [];
+    const restartVotesB = gameState.restartVotesB || [];
+    const myTeamVotes = gameState.yourTeamIsA ? restartVotesA : restartVotesB;
+    const otherTeamVotes = gameState.yourTeamIsA ? restartVotesB : restartVotesA;
 
-  let myTeamWon = false;
-  let winReason = "";
-  if (isGameOver) {
-    myTeamWon =
-      (yourTeamIsA && gameState.winner === "teamA") ||
-      (!yourTeamIsA && gameState.winner === "teamB");
-    winReason = myTeamWon ? "Your team won!" : "Opponent team won!";
-  } else if (opponentTeamEmpty && !yourTeamEmpty) {
-    myTeamWon = true;
-    winReason = "All opponents disconnected!";
-  } else if (yourTeamEmpty && !opponentTeamEmpty) {
-    myTeamWon = false;
-    winReason = "Your team has no players left!";
-  }
-  const showWinScreen = isGameOver || opponentTeamEmpty || yourTeamEmpty;
+    const myTeamAllVoted = gameState.yourTeamIsA
+        ? restartVotesA.length === gameState.teamA.players.length
+        : restartVotesB.length === gameState.teamB.players.length;
 
-  /* ---------- Visual helpers ---------- */
-  const adjustedBarPosition = yourTeamIsA ? barPosition : -barPosition;
+    const otherTeamAllVoted = gameState.yourTeamIsA
+        ? restartVotesB.length === gameState.teamB.players.length
+        : restartVotesA.length === gameState.teamA.players.length;
 
-  const getLeftTeamPositions = (count: number) =>
-    ({
-      1: [15],
-      2: [15, 35],
-      3: [15, 32, 44],
-      4: [15, 25, 35, 45],
-      5: [10, 15, 20, 25, 30],
-    }[count] || []);
+    const iVoted = myTeamVotes.includes(myId);
 
-  const getRightTeamPositions = (count: number) =>
-    ({
-      1: [85],
-      2: [65, 85],
-      3: [56, 68, 85],
-      4: [55, 65, 75, 85],
-      5: [70, 75, 80, 85, 90],
-    }[count] || []);
+    let myTeamWon = false;
+    let winReason = "";
+    if (isGameOver) {
+        myTeamWon =
+            (yourTeamIsA && gameState.winner === "teamA") ||
+            (!yourTeamIsA && gameState.winner === "teamB");
+        winReason = myTeamWon ? "Your team won!" : "Opponent team won!";
+    } else if (opponentTeamEmpty && !yourTeamEmpty) {
+        myTeamWon = true;
+        winReason = "All opponents disconnected!";
+    } else if (yourTeamEmpty && !opponentTeamEmpty) {
+        myTeamWon = false;
+        winReason = "Your team has no players left!";
+    }
+    const showWinScreen = isGameOver || opponentTeamEmpty || yourTeamEmpty;
 
-  const leftPositions = getLeftTeamPositions(yourTeam.players.length);
-  const rightPositions = getRightTeamPositions(opponentTeam.players.length);
+    return (
+        <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 to-green-50 relative overflow-hidden">
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-5">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,theme(colors.blue.500),transparent_50%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_50%,theme(colors.green.500),transparent_50%)]" />
+            </div>
 
-  return (
-    <div className="w-full relative min-h-screen">
-      <div className="relative z-10 space-y-6">
-        {showWinScreen && (
-          <div
-            className={`text-center p-6 rounded-lg backdrop-blur-sm ${
-              myTeamWon ? "bg-green-100/90 text-green-800" : "bg-red-100/90 text-red-800"
-            }`}
-          >
-            <h2 className="text-3xl font-bold mb-2">
-              {myTeamWon ? "🎉 Victory!" : "💔 Defeat!"}
-            </h2>
-            <p className="text-lg">{winReason}</p>
-            {opponentTeamEmpty && !isGameOver && (
-              <p className="text-sm mt-2 text-gray-600">
-                Game will end automatically when all opponents disconnect.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Arena */}
-        <div
-          className="p-2 min-h-[200px] space-y-2 flex items-center justify-center relative"
-          style={{
-            backgroundSize: "cover",
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "bottom",
-            backgroundImage: "url('/game-bg.webp')",
-          }}
-        >
-          {/* Threshold markers */}
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-32 pointer-events-none">
-            <div
-              className={`absolute bottom-1/2 w-2 h-20 shadow-lg transition-colors duration-300 ${
-                adjustedBarPosition <= -winThreshold ? "bg-green-400" : "bg-white"
-              }`}
-              style={{
-                left: "calc(50% - 50px)",
-                transform: "skewX(-10deg)",
-                opacity: 0.9,
-              }}
-            />
-            <div
-              className={`absolute bottom-1/2 w-2 h-20 shadow-lg transition-colors duration-300 ${
-                adjustedBarPosition >= winThreshold ? "bg-red-400" : "bg-white"
-              }`}
-              style={{
-                left: "calc(50% + 35px)",
-                transform: "skewX(10deg)",
-                opacity: 0.9,
-              }}
-            />
-          </div>
-
-          <div className="relative w-full max-w-4xl h-40 flex items-center justify-center">
-            {/* Rope */}
-            <div
-              className="absolute -top-8 scale-y-50 bg-contain bg-no-repeat bg-center transition-all duration-300"
-              style={{
-                width: "100%",
-                height: "100%",
-                backgroundImage: `url('/rope${ropeFrame}.png')`,
-                transform: `translateX(${adjustedBarPosition * 2}px)`,
-                filter:
-                  adjustedBarPosition <= -winThreshold
-                    ? "hue-rotate(120deg) brightness(1.2)"
-                    : adjustedBarPosition >= winThreshold
-                    ? "hue-rotate(0deg) brightness(1.2)"
-                    : "none",
-              }}
-            />
-
-            {/* Your team (left) */}
-            {yourTeam.players.map((p, i) => {
-              const base = leftPositions[i] || 35;
-              const finalPos = base + adjustedBarPosition / 3;
-              return (
-                <div
-                  key={`yt-${p.id}`}
-                  className="absolute -top-4 transition-all duration-300 -translate-x-full"
-                  style={{
-                    left: `${Math.max(5, Math.min(85, finalPos))}%`,
-                    zIndex: yourTeam.players.length - i,
-                  }}
-                >
-                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-20">
-                    <span className="text-xs font-semibold text-white px-2 py-1 rounded-full whitespace-nowrap shadow-sm">
-                      {p.name.length > 10 ? `${p.name.slice(0, 10)}...` : p.name}
-                    </span>
-                  </div>
-                  <CharacterSprite scale={0.18} imgSrc="man" />
+            {/* Game Status Bar */}
+            <div className="relative z-20 bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50">
+                <div className="max-w-6xl mx-auto px-4 py-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-6">
+                            <div className="text-sm font-medium text-gray-600">
+                                Game: {gameState.gameId}
+                            </div>
+                            <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                gameState.status === 'active' ? 'bg-green-100 text-green-700' :
+                                gameState.status === 'countdown' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-gray-100 text-gray-700'
+                            }`}>
+                                {gameState.status === 'active' ? 'ACTIVE' :
+                                 gameState.status === 'countdown' ? 'STARTING' : 'FINISHED'}
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <Target className="w-4 h-4" />
+                                <span>Target: {gameState.winThreshold} clicks</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-              );
-            })}
+            </div>
 
-            {/* Opponent (right) */}
-            {opponentTeam.players.map((p, i) => {
-              const base = rightPositions[i] || 65;
-              const finalPos = base + adjustedBarPosition / 3;
-              return (
-                <div
-                  key={`opp-${p.id}`}
-                  className="absolute -top-4 transition-all duration-300 scale-x-[-1]"
-                  style={{
-                    left: `${Math.max(15, Math.min(95, finalPos))}%`,
-                    zIndex: opponentTeam.players.length - i,
-                  }}
-                >
-                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 scale-x-[-1]">
-                    <span className="text-xs font-semibold text-white px-2 py-1 rounded-full whitespace-nowrap shadow-sm">
-                      {p.name.length > 10 ? `${p.name.slice(0, 10)}...` : p.name}
-                    </span>
-                  </div>
-                  <CharacterSprite scale={0.18} imgSrc="man2" />
+            <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
+                {/* Win Screen Overlay */}
+                {showWinScreen && (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+                        <div className={`max-w-md mx-4 p-8 rounded-2xl shadow-2xl border-2 ${
+                            myTeamWon 
+                                ? "bg-gradient-to-br from-green-50 to-emerald-100 border-green-200" 
+                                : "bg-gradient-to-br from-red-50 to-rose-100 border-red-200"
+                        }`}>
+                            <div className="text-center">
+                                <div className="flex justify-center mb-4">
+                                    {myTeamWon ? <Trophy className="w-16 h-16 text-green-600" /> : <Skull className="w-16 h-16 text-red-600" />}
+                                </div>
+                                <h2 className={`text-4xl font-bold mb-3 ${
+                                    myTeamWon ? "text-green-800" : "text-red-800"
+                                }`}>
+                                    {myTeamWon ? "Victory!" : "Defeat!"}
+                                </h2>
+                                <p className={`text-lg mb-6 ${
+                                    myTeamWon ? "text-green-700" : "text-red-700"
+                                }`}>
+                                    {winReason}
+                                </p>
+
+                                {gameState.status === "finished" &&
+                                    teamA.players.length > 0 &&
+                                    teamB.players.length > 0 && (
+                                    <div className="space-y-4">
+                                        {!iVoted && !myTeamAllVoted && (
+                                            <Button
+                                                onClick={handleRestart}
+                                                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105"
+                                            >
+                                                <RotateCcw className="w-4 h-4 mr-2" />
+                                                Ready to Restart
+                                            </Button>
+                                        )}
+
+                                        {iVoted && !myTeamAllVoted && (
+                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                                <div className="flex items-center text-blue-800 font-medium">
+                                                    <Clock className="w-4 h-4 mr-2" />
+                                                    Waiting for teammates
+                                                </div>
+                                                <div className="text-blue-600 text-sm mt-1">
+                                                    {myTeamVotes.length}/{gameState.yourTeamIsA ? gameState.teamA.players.length : gameState.teamB.players.length} ready
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {myTeamAllVoted && !otherTeamAllVoted && (
+                                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                                <div className="flex items-center text-amber-800 font-medium">
+                                                    <Users className="w-4 h-4 mr-2" />
+                                                    Your team is ready
+                                                </div>
+                                                <div className="text-amber-600 text-sm mt-1">
+                                                    Waiting for other team ({otherTeamVotes.length}/{gameState.yourTeamIsA ? gameState.teamB.players.length : gameState.teamA.players.length})
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {myTeamAllVoted && otherTeamAllVoted && (
+                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                                <div className="flex items-center text-green-700 font-medium animate-pulse">
+                                                    <RotateCcw className="w-4 h-4 mr-2 animate-spin" />
+                                                    Restarting game...
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="pt-6 border-t border-gray-200 mt-6">
+                                    <Button
+                                        onClick={handleLeaveGame}
+                                        variant="outline"
+                                        className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
+                                    >
+                                        <DoorOpen className="w-4 h-4 mr-2" />
+                                        Leave Game
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Team Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    {/* Your Team */}
+                    <div className={`bg-white/80 backdrop-blur-sm rounded-xl shadow-lg p-6 border-2 ${
+                        yourTeamIsA ? 'border-blue-200' : 'border-green-200'
+                    }`}>
+                        <div className="text-center">
+                            <h3 className={`text-xl font-bold mb-2 ${
+                                yourTeamIsA ? 'text-blue-700' : 'text-green-700'
+                            }`}>
+                                Your Team
+                            </h3>
+                            <div className="text-sm text-gray-600 mb-2">{yourTeam.name}</div>
+                            <div className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-bold ${
+                                yourTeamIsA 
+                                    ? 'bg-blue-100 text-blue-700' 
+                                    : 'bg-green-100 text-green-700'
+                            }`}>
+                                {yourTeam.totalClicks} clicks
+                            </div>
+                            <div className="text-sm text-gray-500 mt-2">
+                                {yourTeam.players.length} player{yourTeam.players.length !== 1 ? 's' : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Opponent Team */}
+                    <div className={`bg-white/80 backdrop-blur-sm rounded-xl shadow-lg p-6 border-2 ${
+                        !yourTeamIsA ? 'border-blue-200' : 'border-green-200'
+                    }`}>
+                        <div className="text-center">
+                            <h3 className={`text-xl font-bold mb-2 ${
+                                !yourTeamIsA ? 'text-blue-700' : 'text-green-700'
+                            }`}>
+                                Opponent Team
+                            </h3>
+                            <div className="text-sm text-gray-600 mb-2">{opponentTeam.name}</div>
+                            <div className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-bold ${
+                                !yourTeamIsA 
+                                    ? 'bg-blue-100 text-blue-700' 
+                                    : 'bg-green-100 text-green-700'
+                            }`}>
+                                {opponentTeam.totalClicks} clicks
+                            </div>
+                            <div className="text-sm text-gray-500 mt-2">
+                                {opponentTeam.players.length} player{opponentTeam.players.length !== 1 ? 's' : ''}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Canvas Arena */}
+                <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 mb-8 border border-gray-200/50">
+                    <CanvasArena gameState={gameState} ropeFrame={ropeFrame} />
+                </div>
+
+                {/* Action Button */}
+                <div className="text-center mb-8">
+                    {(() => {
+                        const isCountdown = gameState.status === "countdown";
+                        const effectiveCountdown = isCountdown ? (gameState.countdownRemaining ?? 3) : undefined;
+                        
+                        return (
+                            <div className="relative">
+                                <Button
+                                    onClick={handleClick}
+                                    disabled={showWinScreen || yourTeamEmpty || gameState.status !== "active"}
+                                    className={`relative w-40 h-40 text-3xl font-bold rounded-full shadow-2xl border-4 transition-all duration-200 transform ${
+                                        clickEffect ? 'scale-90' : 'scale-100 hover:scale-105'
+                                    } ${
+                                        showWinScreen || yourTeamEmpty || gameState.status !== "active"
+                                            ? 'bg-gray-400 border-gray-300 cursor-not-allowed'
+                                            : isCountdown
+                                                ? 'bg-gradient-to-br from-yellow-400 to-orange-500 border-orange-300 hover:from-yellow-500 hover:to-orange-600'
+                                                : 'bg-gradient-to-br from-green-400 to-emerald-600 border-green-300 hover:from-green-500 hover:to-emerald-700 active:scale-95'
+                                    }`}
+                                >
+                                    {showWinScreen ? (
+                                        <span>Game<br/>Over</span>
+                                    ) : yourTeamEmpty ? (
+                                        <span>No<br/>Team</span>
+                                    ) : isCountdown ? (
+                                        <div className="flex flex-col items-center">
+                                            <div className="text-6xl font-extrabold animate-pulse">
+                                                {effectiveCountdown}
+                                            </div>
+                                            <div className="text-sm">Get Ready!</div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center">
+                                            <Zap className="w-8 h-8 mb-1 text-white" />
+                                            <div>PULL!</div>
+                                        </div>
+                                    )}
+                                </Button>
+                                
+                                {/* Click ripple effect */}
+                                {clickEffect && (
+                                    <div className="absolute inset-0 rounded-full bg-white/30 animate-ping pointer-events-none" />
+                                )}
+                            </div>
+                        );
+                    })()}
+                </div>
+            </div>
         </div>
-      </div>
-
-      {/* Click Button */}
-      <div className="text-center space-y-4">
-        <Button
-          onClick={handleClick}
-          disabled={showWinScreen || yourTeamEmpty}
-          className="w-32 h-32 text-2xl font-bold rounded-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 transition-all duration-200 active:scale-95 shadow-lg"
-        >
-          {showWinScreen ? "Game Over" : yourTeamEmpty ? "No Team" : "PULL!"}
-        </Button>
-      </div>
-
-      <div className="text-center">
-        <Button
-          variant="outline"
-          onClick={handleLeaveGame}
-          className="bg-red-50/90 hover:bg-red-100/90 text-red-600 backdrop-blur-sm border-red-200"
-        >
-          Leave Game
-        </Button>
-      </div>
-    </div>
-  );
+    );
 }
 
 export default Game;

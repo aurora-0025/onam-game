@@ -89,27 +89,16 @@ function attemptMatch(io: Server, size: number) {
   teamB.inQueue = false;
 
   const gameId = "game-" + generateInviteCode();
-  createGame(gameId, teamA, teamB);
+  const created = createGame(io, gameId, teamA, teamB);
 
   const baseGameData = {
-    gameId,
-    teamA: {
-      teamId: teamA.id,
-      name: teamA.name,
-      players: [...teamA.participants].map(p => ({ id: p.id, name: p.name, clicks: 0 })),
-      leaderId: teamA.leaderId,
-      totalClicks: 0
-    },
-    teamB: {
-      teamId: teamB.id,
-      name: teamB.name,
-      players: [...teamB.participants].map(p => ({ id: p.id, name: p.name, clicks: 0 })),
-      leaderId: teamB.leaderId,
-      totalClicks: 0
-    },
-    barPosition: 0,
-    status: "active" as const,
-    winThreshold: 25
+    gameId: created.id,
+    teamA: created.teamA,
+    teamB: created.teamB,
+    barPosition: created.barPosition,
+    status: created.status,
+    winThreshold: 25,
+    countdownRemaining: created.countdownRemaining
   };
 
   // Send to teamA players with yourTeamIsA: true
